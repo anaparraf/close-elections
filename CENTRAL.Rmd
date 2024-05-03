@@ -1,0 +1,264 @@
+---
+title: "close_election"
+author: "K"
+date: "2024-04-25"
+output: html_document
+---
+
+importando bibliotecas e abrindo bases
+```{r, warning=FALSE, message=FALSE}
+library(readxl)
+library(tidyverse)
+library(reshape2)
+
+setwd("C:/Users/Dr_An/OneDrive/Área de Trabalho/Insper_Data/Close_election_Adriano/Dados/municipios")
+
+```
+
+```{r}
+br <- read_excel('mg_vitoria_feminina.xlsx')
+
+br |> 
+  head(5)
+```
+
+```{r}
+datasus <- read.csv('datasus_completo.csv') |> 
+  mutate(municipio = as.character(municipio),
+         municipio = ifelse(nchar(municipio) == 7, substring(municipio, 1, 6), municipio),
+         idade = as.character(idade),
+         idade = substr(idade, 2, 3),
+         idade = as.numeric(idade)) |>
+  filter(idade >= 15 & idade <= 49,
+         local == 3, #ambiente domestico
+         ano_obito <= 2016 & ano_obito > 2004) |> 
+  mutate(ano_obito = as.factor(ano_obito)) 
+
+datasus |> head(3)
+```
+
+```{r}
+pop <- read_xlsx('estimativa_pop_municipio.xlsx', sheet = 'Planilha1')
+
+muni_pop <- pop |>  
+  rename(municipio = Município) |> 
+  mutate(cd_municipio = substr(municipio, 1, 6),
+         municipio = substr(municipio,8, nchar(municipio))) |> 
+  melt(c('cd_municipio','municipio'))  |>  
+  rename(ano = variable,
+         pop = value) 
+
+muni_pop |> head(2)
+```
+```{r}
+
+
+# homicidio_mandato <- datasus |> 
+#   filter(sexo == 2) |> 
+#   group_by(municipio, mandato, ano_obito) |> 
+#   summarize(homicidios = n()) |>
+#   right_join(muni_pop, by=c('municipio' = 'cd_municipio', 'ano_obito' = 'ano')) |> 
+#   mutate(ano_obito = as.character(ano_obito), 
+#          mandato = case_when(
+#           ano_obito <= 2004 ~ 2000,
+#           ano_obito <= 2008 ~ 2004,
+#           ano_obito <= 2012 ~ 2008,
+#           ano_obito <= 2016 ~ 2012,
+#           ano_obito <= 2020 ~ 2016,
+#           ano_obito <= 2024 ~ 2020,
+#           .default = NA)) |> 
+#   mutate(pop = as.numeric(pop),
+#          homicidios = ifelse(is.na(homicidios), 0, homicidios),
+#          tx_homicidios = (homicidios/pop)*100000) |> 
+#   rename(nm_municipio = municipio.y) |> 
+#   group_by(nm_municipio, mandato) |> 
+#   summarise(mean_tx_homicidio_mandato = mean(tx_homicidios),
+#             sum_tx_homicidio_mandato = sum(tx_homicidios),
+#             pop = first(pop))
+
+# homicidio_mandato <- datasus |> 
+#   filter(sexo == 2) |> 
+#   group_by(municipio, ano_obito) |> 
+#   summarize(homicidios = n()) |>
+#   right_join(muni_pop, by=c('municipio' = 'cd_municipio', 'ano_obito' = 'ano')) |> 
+#   mutate(ano_obito = as.numeric(as.character(ano_obito)),
+#          mandato_inicio = case_when(
+#           ano_obito >= 2024 ~ 2024,
+#           ano_obito >= 2020 ~ 2020,
+#           ano_obito >= 2016 ~ 2016,
+#           ano_obito >= 2012 ~ 2012,
+#           ano_obito >= 2008 ~ 2008,
+#           ano_obito >= 2004 ~ 2004,
+#           .default = NA)) |>
+#   group_by(municipio, mandato_inicio) |> 
+#   summarise(pop_inicio = min(pop)) |> 
+#   right_join(homicidio_mandato, by=c('municipio' = 'municipio', 'mandato_inicio' = 'mandato')) |> 
+  # rename(mandato = mandato_inicio)
+
+
+```
+
+
+```{r}
+
+homicidio_mandato <- datasus |> 
+  filter(sexo == 2) |> 
+  group_by(municipio, mandato, ano_obito) |> 
+  summarize(homicidios = n()) |>
+  right_join(muni_pop, by=c('municipio' = 'cd_municipio', 'ano_obito' = 'ano')) |> 
+  mutate(ano_obito = as.character(ano_obito), 
+         mandato = case_when(
+          ano_obito <= 2004 ~ 2000,
+          ano_obito <= 2008 ~ 2004,
+          ano_obito <= 2012 ~ 2008,
+          ano_obito <= 2016 ~ 2012,
+          ano_obito <= 2020 ~ 2016,
+          ano_obito <= 2024 ~ 2020,
+          .default = NA)) |> 
+  mutate(pop = as.numeric(pop),
+         homicidios = ifelse(is.na(homicidios), 0, homicidios),
+         tx_homicidios = (homicidios/pop)*100000) |> 
+  rename(nm_municipio = municipio.y) |> 
+  group_by(nm_municipio, mandato) |> 
+  summarise(mean_tx_homicidio_mandato = mean(tx_homicidios),
+            sum_tx_homicidio_mandato = sum(tx_homicidios),
+            pop = first(pop))
+
+homicidio_mandato
+```
+
+
+```{r}
+br |> 
+  left_join(homicidio_mandato, by=c('municipio' = 'nm_municipio', 'ano' = 'mandato')) |> 
+    mutate(mulheres_eleitas = margem_vitoria_mulher > 0) |> 
+  rename(mandato = ano) |>  
+  filter(pop <= 200000) |> 
+  group_by(mandato) |> 
+  summarize(n = n())
+
+
+br |> 
+  left_join(homicidio_mandato, by=c('municipio' = 'nm_municipio', 'ano' = 'mandato')) |> 
+    mutate(mulheres_eleitas = margem_vitoria_mulher > 0) |> 
+  rename(mandato = ano) |> 
+  group_by(mandato) |> 
+  summarize(n = n()) 
+```
+
+
+agora juntando com a base de margem de vitória 
+
+```{r}
+df_final <- br |> 
+  left_join(homicidio_mandato, by=c('municipio' = 'nm_municipio', 'ano' = 'mandato')) |> 
+    mutate(mulheres_eleitas = margem_vitoria_mulher > 0) |> 
+  rename(mandato = ano) #|>  
+  filter(pop <= 200000)
+```
+
+
+```{r}
+df_final |> 
+  ggplot(aes(x = as.factor(mandato), fill = mulheres_eleitas)) + 
+  geom_bar(position = 'dodge')
+
+df_final %>%
+  mutate(estado = fct_rev(fct_infreq(as.factor(estado)))) %>%  
+  ggplot(aes(x = estado, fill = mulheres_eleitas)) +
+  geom_bar() +
+  ggtitle('Contagem de municípios - Homens x Mulheres')+
+  coord_flip() 
+  
+df_final %>%
+  mutate(estado = fct_rev(fct_infreq(as.factor(estado)))) %>%  
+  ggplot(aes(x = estado, fill = mulheres_eleitas)) +
+  geom_bar(position = 'fill') +
+  coord_flip() +
+  geom_hline(yintercept = .50)
+  
+```
+
+```{r}
+
+df_final |> 
+  group_by(mandato) |> 
+  summarise(n = n())
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+
+library(broom)
+library(rdrobust)
+library(rddensity)
+library(modelsummary)
+library(tidyverse)
+```
+
+
+```{r}
+ # plotando sharp
+ggplot(data = df_final,
+       mapping= aes(x=margem_vitoria_mulher, y=  mulheres_eleitas, color=mulheres_eleitas))+
+    geom_point(size = 1, alpha = .5,
+               position = position_jitter(width = 0, height = .5),
+               show.legend = FALSE) + 
+  geom_vline(xintercept = 0)
+
+
+```
+
+```{r}
+ggplot(df_final, aes(x = margem_vitoria_mulher, fill=mulheres_eleitas))+
+  geom_histogram(binwidth =0.1 , boundary = 0, color = 'white') +
+  geom_vline(xintercept = 0) 
+
+df_final |> 
+  group_by(mulheres_eleitas) |> 
+  summarise(total = n())
+```
+
+```{r}
+
+rdplotdensity(rdd = rddensity(df_final$margem_vitoria_mulher, c = 0),
+              X = df_final$margem_vitoria_mulher,
+              type="both")
+
+ggplot(data = df_final,
+       mapping= aes(x=margem_vitoria_mulher, y= mean_tx_homicidio_mandato, color=mulheres_eleitas))+
+  geom_point()
+
+
+```
+
+
+```{r}
+df_final |> 
+  ggplot(aes(margem_vitoria_mulher, y = mean_tx_homicidio_mandato, color = as.factor(mulheres_eleitas))) + 
+  geom_point() +
+  geom_smooth(method = 'loess')
+```
+```{r}
+
+df_final |> 
+  mutate(band_width = cut(margem_vitoria_mulher, breaks = seq(-1,1, by=0.01)),
+         mean_tx_homicidio_mandato = ifelse(is.na(mean_tx_homicidio_mandato), 0, mean_tx_homicidio_mandato)) |>
+  group_by(band_width) |> 
+  summarize(tx_homicidio = mean(mean_tx_homicidio_mandato),
+            mulheres_eleitas = first(mulheres_eleitas)) |> 
+  ggplot(aes(as.numeric(band_width), y = tx_homicidio, color = as.factor(mulheres_eleitas))) + 
+  geom_point() +
+  geom_smooth(method = 'loess') +
+  xlim(80,120) + 
+  ylim(0,1.5)
+
+```
+
+
+
+
+
+
+
+
