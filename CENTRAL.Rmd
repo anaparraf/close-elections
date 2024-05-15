@@ -6,39 +6,387 @@ output: html_document
 ---
 
 importando bibliotecas e abrindo bases
-```{r, warning=FALSE, message=FALSE}
+```{r comeco, warning=FALSE, message=FALSE}
+
 library(readxl)
 library(tidyverse)
 library(reshape2)
+library(writexl)
 
 setwd("C:/Users/Dr_An/OneDrive/Área de Trabalho/Insper_Data/Close_election_Adriano/Dados/municipios")
 
 ```
 
-```{r}
-br <- read_excel('mg_vitoria_feminina.xlsx')
+## Total de Votantes
 
-br |> 
-  head(5)
+### Dados Brutos - Populacao eleitoral
+Puxando a base diretamente da library electionsBR e salvando no csv: n_eleitores_mandato.csv
+```{r, warning=FALSE, message=FALSE}
+
+# library(electionsBR)
+# 
+# n_eleitores <- function(year) {
+#   elections_tse(year, type = 'details_mun_zone', uf = 'all')}
+# 
+# year = c(2000, 2004, 2008, 2012, 2016, 2020)
+# 
+# n_eleitores_mandato <- map_df(year, n_eleitores)
+# 
+# write.csv(n_eleitores_mandato, file = 'populacao_votante.csv', row.names = FALSE)
+# 
+# n_eleitores_mandato <- read_csv('populacao_votante.csv')
+```
+
+### Filtragem do total de votantes
+Aqui, com base na base extraida anteriormente, foram feitas as modificacoes e filtragens necessarias para a analise. Salvas tambem no csv: total_votantes.csv
+```{r, warning=FALSE, message=FALSE}
+
+# total_votantes <- n_eleitores_mandato |>
+#   rename(cargo = DS_CARGO,
+#          municipio = NM_MUNICIPIO,
+#          total_votantes = QT_APTOS,
+#          ano = ANO_ELEICAO,
+#          zona = NR_ZONA,
+#          abstencoes = QT_ABSTENCOES) |>
+#   filter(cargo == 'Prefeito') |>
+#   group_by(ano, municipio, zona) |>
+#     summarise(total_votantes = max(total_votantes),
+#               total_abstencoes = max(abstencoes)) |>
+#   group_by(ano, municipio) |>
+#   summarise(total_votantes = sum(total_votantes),
+#             total_abstencoes = sum(total_abstencoes),
+#             tx_abstencao = total_abstencoes/total_votantes)
+# 
+# write.csv(total_votantes, file = 'total_votantes.csv', row.names = FALSE)
+# 
+# total_votantes <- read.csv('total_votantes.csv')
+
+
+```
+
+## Margem de Vitoria
+
+### raw elections info
+Extraindo e salvando todos os dados das eleicoes municipais de 2000 a 2020 - Salvas em elections_info.csv 
+```{r}
+# library(electionsBR)
+# 
+# function_elections_info <- function(year) {
+#   elections_tse(year, uf='all', type = 'vote_mun_zone')
+#   }
+# 
+# year = c(2000, 2004, 2008, 2012, 2016, 2020)
+# 
+# elections_info <- map_df(year, function_elections_info)
+# 
+# write.csv(elections_info, file = 'elections_info.csv', row.names = FALSE)
+# # 
+# 
+# elections_info <- read.csv('elections_info.csv')
+# 
+# elections_info |> head(5)
+```
+
+### candidates info
+```{r}
+
+# library(electionsBR)
+# 
+# function_candidates_info <- function(year) {
+#   candidate_local(year, uf='all') |>
+#     mutate(NR_PROTOCOLO_CANDIDATURA = as.character(NR_PROTOCOLO_CANDIDATURA),
+#            NR_CPF_CANDIDATO = as.character(NR_CPF_CANDIDATO),
+#            CD_COR_RACA = as.character(CD_COR_RACA))}
+# 
+# year = c(2000, 2004, 2008, 2012, 2016, 2020)
+# 
+# candidates_info <- map_df(year, function_candidates_info)
+# 
+# write.csv(candidates_info, file = 'candidates_info.csv', row.names = FALSE)
+# 
+
+# candidates_info <- read.csv('candidates_info.csv')
+# 
+# candidates_info |> head(5)
+```
+
+
+### Filtrando e ajustando a base com informacoes sobre os candidatos
+
+```{r}
+
+# candidates <- candidates_info %>%
+#   rename(
+#     ano = ANO_ELEICAO,
+#     estado = SG_UF,
+#     cargo = DS_CARGO,
+#     candidato = NM_CANDIDATO,
+#     genero = DS_GENERO,
+#     partido = SG_PARTIDO,
+#     idade = NR_IDADE_DATA_POSSE,
+#     educacao = DS_GRAU_INSTRUCAO) %>%
+#   filter(ano >= 2004 & ano <= 2012,
+#          cargo == 'PREFEITO')  %>%
+#   select(ano, estado, candidato, genero, partido, idade, educacao) %>%
+#   group_by(ano, estado, candidato) %>%
+#   summarise(genero = first(genero),
+#             partido = first(partido),
+#             idade = first(idade),
+#             educacao = first(educacao))
+# 
+# 
+# candidates |> head(5)
+
 ```
 
 ```{r}
-datasus <- read.csv('datasus_completo.csv') |> 
+
+
+# elections_info <- read.csv('elections_info.csv')
+# 
+# tse_ibge_muni <- read.csv('municipios_brasileiros_tse.csv')
+# 
+# 
+# elections_results <- elections_info %>%
+#   rename(
+#     ano = ANO_ELEICAO,
+#     estado = SG_UF,
+#     cargo = DS_CARGO,
+#     municipio = NM_MUNICIPIO,
+#     cd_municipio = CD_MUNICIPIO,
+#     zona = NR_ZONA,
+#     candidato = NM_CANDIDATO,
+#     votos = QT_VOTOS_NOMINAIS
+#     ) %>%
+#   filter(ano >= 2004 & ano <= 2012,
+#     cargo == 'Prefeito') |>
+#   select(ano, estado,  municipio, cd_municipio, zona, candidato, votos) %>%
+#   left_join(candidates, by = c('ano', 'estado', 'candidato')) |>
+#   group_by(ano, estado, municipio, candidato) %>%
+#   summarise(cd_municipio = first(cd_municipio),
+#             votos_totais = sum(votos),
+#             genero = first(genero),
+#             partido = first(partido),
+#             idade = first(idade),
+#             educacao = first(educacao)) %>%
+#   arrange(ano, estado, municipio, desc(votos_totais)) %>%
+#   slice_max(order_by = votos_totais, n = 2) %>%
+#   mutate(margem = votos_totais/sum(votos_totais)) %>%
+#   group_by(ano, estado, municipio) %>%
+#   summarise(
+#     cd_municipio = first(cd_municipio),
+#     nome_eleito = first(candidato),
+#     partido_eleito = first(partido),
+#     idade_eleito = first(idade),
+#     educacao_eleito = first(educacao),
+#     cont_fem = sum(genero == 'FEMININO'),
+#     margem_fem = sum(margem[genero == "FEMININO"]),
+#     margem_mas = sum(margem[genero == "MASCULINO"]),
+#     margem_vitoria_mulher = (margem_fem - margem_mas),
+#     mulher_eleita = margem_vitoria_mulher > 0 ,
+#     .groups = 'drop') %>%
+#   filter(cont_fem == 1) |>
+#   select(ano, estado, municipio, margem_vitoria_mulher, everything(),-cont_fem,-margem_fem,-margem_mas) |>
+#   left_join(total_votantes, by=c('municipio', 'ano')) |> 
+#   left_join(tse_ibge_muni, by=c('cd_municipio' = 'codigo_tse')) |> 
+#   select(-uf, -nome_municipio, -capital)
+# 
+# write.csv(elections_results, file = 'elections_results.csv', row.names = FALSE)
+# 
+# 
+# pop <- read_xlsx('estimativa_pop_municipio.xlsx', sheet = 'Planilha1')
+# 
+# muni_pop <- pop |>
+#   rename(municipio = Município) |>
+#   mutate(cd_municipio = substr(municipio, 1, 6),
+#          municipio = substr(municipio,8, nchar(municipio))) |>
+#   melt(c('cd_municipio','municipio'))  |>
+#   rename(ano = variable,
+#          pop = value) |>
+#   mutate(municipio = iconv(municipio, from = "UTF-8", to = "ASCII//TRANSLIT"),
+#        municipio = str_replace_all(municipio, "[^A-Za-z0-9 ]", ""))
+
+
+elections_results <- read.csv('elections_results.csv')
+
+
+```
+ 
+ 
+ 
+
+### graficos
+```{r }
+
+# 1 - partido 
+elections_results |> 
+  count(partido_eleito, sort = TRUE) |>
+  head(10) |> 
+  mutate(partido_eleito = fct_reorder(partido_eleito, n)) |>  
+  ggplot(aes(partido_eleito, n)) +
+  geom_col() + 
+  coord_flip()
+  
+# 2 - partido
+elections_results %>%
+  count(partido_eleito, mulher_eleita, sort = TRUE) %>%
+  group_by(partido_eleito) %>%
+  mutate(total = sum(n)) %>%
+  ungroup() %>%
+  mutate(partido_eleito = fct_reorder(partido_eleito, total, .desc = TRUE)) %>%
+  slice_max(order_by = total, n = 20) %>%
+  ggplot(aes(x = partido_eleito, y = n, fill = mulher_eleita)) +  # Fill based on gender
+  geom_col(show.legend = TRUE, position = 'dodge') +  # Show legend to distinguish male/female
+  coord_flip() +
+  labs(title = "Eleições Ganhas - Homens x Mulheres",
+       x = "Partido",
+       y = "Numero de eleições ganhas",
+       fill = "Mulher eleita")
+
+
+# 3 - ano 
+elections_results |> 
+  ggplot(aes(x = as.factor(ano), fill = mulher_eleita)) + 
+  geom_bar(position = 'dodge')
+
+# 4 - estado 
+elections_results %>%
+  mutate(estado = fct_rev(fct_infreq(as.factor(estado)))) %>%  
+  ggplot(aes(x = estado, fill = mulher_eleita)) +
+  geom_bar() +
+  ggtitle('...')+
+  coord_flip() 
+  
+
+# 5 - estado 
+
+library(scales)
+
+elections_results %>%
+  mutate(estado = fct_rev(fct_infreq(as.factor(estado)))) %>%  
+  ggplot(aes(x = estado, fill = mulher_eleita)) +
+  geom_bar(position = 'fill') +
+  coord_flip() +
+  labs(x = "Estado", y = "Proporção", fill = "Mulher Eleita?") +
+  geom_hline(yintercept = .50, linetype = "dashed", color = "yellow", linewidth = 1) +
+  scale_y_continuous(labels = percent)
+
+# 6 - idade
+# melhorar, botar a media de cada grupo por exemplo.
+
+elections_results %>%
+  ggplot(aes(idade_eleito, fill = mulher_eleita)) + 
+  geom_density(data = . %>% filter(mulher_eleita == TRUE), color = "blue", size = 1, alpha = 1) +  
+  geom_density(data = . %>% filter(mulher_eleita == FALSE), color = "red", size = 1, alpha = .78) +
+  labs(title = "idade_eleito",
+       x = "idade",  
+       y = "Frequência") +  
+  theme_minimal() +
+  lims(x = c(18, 80))
+
+
+# 7 - escolaridade
+# MELHORAR ESSA VISUALIZACAO PELO AMOR DE DEUS!!!!!!!!!!!! Mas informacoes mt valiosas
+elections_results %>%
+  ggplot(aes(x = mulher_eleita, fill = educacao_eleito)) +
+  geom_bar() +
+  ggtitle('...')+
+  coord_flip() 
+
+# 8 - abstencao
+
+elections_results %>%
+  ggplot(aes(tx_abstencao, fill = mulher_eleita)) + 
+  geom_density(data = . %>% filter(mulher_eleita == TRUE), color = "blue", size = 1, alpha = 1) +  
+  geom_density(data = . %>% filter(mulher_eleita == FALSE), color = "red", size = 1, alpha = .78) +
+  labs(title = "Distribuição das Abstenções",
+       x = "Tx_abstencao",  
+       y = "Frequência") +  
+  theme_minimal() +
+  lims(x = c(0, 0.3))
+
+
+```
+
+### Rotulos para fazer o join com a base elections_results 
+```{r}
+library(stringr)
+library(stringi)
+
+rotulo_muni2005 <- read_excel('cd_muni_pre_2005.xls')
+
+
+rotulo2005 <- rotulo_muni2005 |> 
+  rename(cd_municipio = `Código Município Completo`,
+         nm_municipio = Nome_Município) |> 
+  mutate(nm_municipio = iconv(nm_municipio, from = "UTF-8", to = "ASCII//TRANSLIT"),
+         nm_municipio = str_replace_all(nm_municipio, "[^A-Za-z0-9 ]", ""),
+         nm_municipio = toupper(nm_municipio))
+
+pop <- read_xlsx('estimativa_pop_municipio.xlsx', sheet = 'Planilha1')
+
+
+rotulo <- pop |>  
+  rename(municipio = Município) |> 
+  mutate(cd_municipio = substr(municipio, 1, 6),
+         municipio = substr(municipio,8, nchar(municipio))) |> 
+  melt(c('cd_municipio','municipio'))  |>  
+  rename(ano = variable,
+         pop = value) |>  
+  mutate(municipio = iconv(municipio, from = "UTF-8", to = "ASCII//TRANSLIT"),
+       municipio = str_replace_all(municipio, "[^A-Za-z0-9 ]", "")) |> 
+  select(cd_municipio, municipio) |> 
+  rename(nm_municipio = municipio)
+
+
+datasus <- read.csv('datasus_completo.csv')
+
+
+rotulo_final <- datasus |> 
   mutate(municipio = as.character(municipio),
-         municipio = ifelse(nchar(municipio) == 7, substring(municipio, 1, 6), municipio),
+         idade = as.character(idade),
+  idade = substr(idade, 2, 3)) |> 
+  group_by(municipio) |>
+  summarise() |> 
+  left_join(rotulo2005, by = c('municipio' = 'cd_municipio')) |> 
+  left_join(rotulo, by = c('municipio' = 'cd_municipio')) |> 
+  mutate(nm_municipio = coalesce(nm_municipio.x, nm_municipio.y))  |> 
+  select(-nm_municipio.x, -nm_municipio.y) |> 
+  group_by(municipio) |> 
+  summarise(nm_municipio = first(nm_municipio)) 
+
+
+
+```
+
+### FILTRANDO HOMICIDIOS
+```{r}
+
+
+
+domestic_homicide <- datasus |> 
+  mutate(municipio = as.character(municipio),
          idade = as.character(idade),
          idade = substr(idade, 2, 3),
-         idade = as.numeric(idade)) |>
-  filter(idade >= 15 & idade <= 49,
-         local == 3, #ambiente domestico
-         ano_obito <= 2016 & ano_obito > 2004) |> 
-  mutate(ano_obito = as.factor(ano_obito)) 
+         idade = as.numeric(idade),
+         municipio = as.character(municipio),
+         estado = substr(municipio, 1,2)) |> 
+  left_join(rotulo_final, by = c('municipio')) |> 
+  select(data, ano_obito, estado, municipio, nm_municipio, everything()) |>
+  filter(idade >= 15 & idade <= 49, 
+         local == 3, # ambiente domestico
+         ano_obito <= 2016 & ano_obito > 2004) |> # somente 3 mandatos. 2004, 2008, 2012 
+  group_by(mandato, estado , nm_municipio) |> 
+  summarize(homicidios = n())
 
-datasus |> head(3)
+domestic_homicide |> arrange(nm_municipio)
+
+
 ```
 
+### juntando com a base principal
+
 ```{r}
-pop <- read_xlsx('estimativa_pop_municipio.xlsx', sheet = 'Planilha1')
 
 muni_pop <- pop |>  
   rename(municipio = Município) |> 
@@ -46,144 +394,52 @@ muni_pop <- pop |>
          municipio = substr(municipio,8, nchar(municipio))) |> 
   melt(c('cd_municipio','municipio'))  |>  
   rename(ano = variable,
-         pop = value) 
+         pop = value) |>
+  select(-municipio)
 
-muni_pop |> head(2)
-```
-```{r}
-
-
-# homicidio_mandato <- datasus |> 
-#   filter(sexo == 2) |> 
-#   group_by(municipio, mandato, ano_obito) |> 
-#   summarize(homicidios = n()) |>
-#   right_join(muni_pop, by=c('municipio' = 'cd_municipio', 'ano_obito' = 'ano')) |> 
-#   mutate(ano_obito = as.character(ano_obito), 
-#          mandato = case_when(
-#           ano_obito <= 2004 ~ 2000,
-#           ano_obito <= 2008 ~ 2004,
-#           ano_obito <= 2012 ~ 2008,
-#           ano_obito <= 2016 ~ 2012,
-#           ano_obito <= 2020 ~ 2016,
-#           ano_obito <= 2024 ~ 2020,
-#           .default = NA)) |> 
-#   mutate(pop = as.numeric(pop),
-#          homicidios = ifelse(is.na(homicidios), 0, homicidios),
-#          tx_homicidios = (homicidios/pop)*100000) |> 
-#   rename(nm_municipio = municipio.y) |> 
-#   group_by(nm_municipio, mandato) |> 
-#   summarise(mean_tx_homicidio_mandato = mean(tx_homicidios),
-#             sum_tx_homicidio_mandato = sum(tx_homicidios),
-#             pop = first(pop))
-
-# homicidio_mandato <- datasus |> 
-#   filter(sexo == 2) |> 
-#   group_by(municipio, ano_obito) |> 
-#   summarize(homicidios = n()) |>
-#   right_join(muni_pop, by=c('municipio' = 'cd_municipio', 'ano_obito' = 'ano')) |> 
-#   mutate(ano_obito = as.numeric(as.character(ano_obito)),
-#          mandato_inicio = case_when(
-#           ano_obito >= 2024 ~ 2024,
-#           ano_obito >= 2020 ~ 2020,
-#           ano_obito >= 2016 ~ 2016,
-#           ano_obito >= 2012 ~ 2012,
-#           ano_obito >= 2008 ~ 2008,
-#           ano_obito >= 2004 ~ 2004,
-#           .default = NA)) |>
-#   group_by(municipio, mandato_inicio) |> 
-#   summarise(pop_inicio = min(pop)) |> 
-#   right_join(homicidio_mandato, by=c('municipio' = 'municipio', 'mandato_inicio' = 'mandato')) |> 
-  # rename(mandato = mandato_inicio)
+elections_final <- elections_results %>%
+  mutate(municipio = iconv(municipio, from = "UTF-8", to = "ASCII//TRANSLIT"),
+         municipio = str_replace_all(municipio, "[^A-Za-z0-9 ]", ""),
+         municipio = str_replace_all(municipio, "\\bD ", "D"),
+         municipio = trimws(municipio, which = "right"),
+         codigo_ibge = as.character(codigo_ibge),
+         cd_estado = substr(codigo_ibge,1,2)) %>%
+  left_join(domestic_homicide, by=c('ano' = 'mandato', 'cd_estado' = 'estado', 'municipio' = 'nm_municipio')) %>%
+  select(ano, estado, municipio, codigo_ibge, homicidios, margem_vitoria_mulher, everything()) |> 
+  mutate(homicidios = replace_na(homicidios, 0),
+         codigo_ibge = as.character(codigo_ibge),
+         codigo_ibge_att = substr(codigo_ibge, 1, 6),
+         ano = as.factor(ano)) |> 
+  left_join(muni_pop, by=c('codigo_ibge_att' = 'cd_municipio', 'ano')) |> 
+  mutate(pop = as.integer(pop),
+         tx_homicidio = (homicidios/pop)*100000) |> 
+  select(ano, estado, municipio, margem_vitoria_mulher, tx_homicidio, everything(), -cd_municipio) |> 
+  filter(total_votantes < 200000)
 
 
 ```
 
 
-```{r}
-
-homicidio_mandato <- datasus |> 
-  filter(sexo == 2) |> 
-  group_by(municipio, mandato, ano_obito) |> 
-  summarize(homicidios = n()) |>
-  right_join(muni_pop, by=c('municipio' = 'cd_municipio', 'ano_obito' = 'ano')) |> 
-  mutate(ano_obito = as.character(ano_obito), 
-         mandato = case_when(
-          ano_obito <= 2004 ~ 2000,
-          ano_obito <= 2008 ~ 2004,
-          ano_obito <= 2012 ~ 2008,
-          ano_obito <= 2016 ~ 2012,
-          ano_obito <= 2020 ~ 2016,
-          ano_obito <= 2024 ~ 2020,
-          .default = NA)) |> 
-  mutate(pop = as.numeric(pop),
-         homicidios = ifelse(is.na(homicidios), 0, homicidios),
-         tx_homicidios = (homicidios/pop)*100000) |> 
-  rename(nm_municipio = municipio.y) |> 
-  group_by(nm_municipio, mandato) |> 
-  summarise(mean_tx_homicidio_mandato = mean(tx_homicidios),
-            sum_tx_homicidio_mandato = sum(tx_homicidios),
-            pop = first(pop))
-
-homicidio_mandato
-```
-
 
 ```{r}
-br |> 
-  left_join(homicidio_mandato, by=c('municipio' = 'nm_municipio', 'ano' = 'mandato')) |> 
-    mutate(mulheres_eleitas = margem_vitoria_mulher > 0) |> 
-  rename(mandato = ano) |>  
-  filter(pop <= 200000) |> 
-  group_by(mandato) |> 
-  summarize(n = n())
-
-
-br |> 
-  left_join(homicidio_mandato, by=c('municipio' = 'nm_municipio', 'ano' = 'mandato')) |> 
-    mutate(mulheres_eleitas = margem_vitoria_mulher > 0) |> 
-  rename(mandato = ano) |> 
-  group_by(mandato) |> 
-  summarize(n = n()) 
-```
-
-
-agora juntando com a base de margem de vitória 
-
-```{r}
-df_final <- br |> 
-  left_join(homicidio_mandato, by=c('municipio' = 'nm_municipio', 'ano' = 'mandato')) |> 
-    mutate(mulheres_eleitas = margem_vitoria_mulher > 0) |> 
-  rename(mandato = ano) #|>  
-  filter(pop <= 200000)
-```
-
-
-```{r}
-df_final |> 
-  ggplot(aes(x = as.factor(mandato), fill = mulheres_eleitas)) + 
+elections_final |> 
+  ggplot(aes(x = as.factor(ano))) + 
   geom_bar(position = 'dodge')
 
-df_final %>%
+elections_final %>%
   mutate(estado = fct_rev(fct_infreq(as.factor(estado)))) %>%  
-  ggplot(aes(x = estado, fill = mulheres_eleitas)) +
+  ggplot(aes(x = estado, fill = mulher_eleita)) +
   geom_bar() +
   ggtitle('Contagem de municípios - Homens x Mulheres')+
   coord_flip() 
   
-df_final %>%
+elections_final %>%
   mutate(estado = fct_rev(fct_infreq(as.factor(estado)))) %>%  
-  ggplot(aes(x = estado, fill = mulheres_eleitas)) +
+  ggplot(aes(x = estado, fill = mulher_eleita)) +
   geom_bar(position = 'fill') +
   coord_flip() +
   geom_hline(yintercept = .50)
   
-```
-
-```{r}
-
-df_final |> 
-  group_by(mandato) |> 
-  summarise(n = n())
 ```
 
 
@@ -196,62 +452,110 @@ library(modelsummary)
 library(tidyverse)
 ```
 
-
 ```{r}
- # plotando sharp
-ggplot(data = df_final,
-       mapping= aes(x=margem_vitoria_mulher, y=  mulheres_eleitas, color=mulheres_eleitas))+
+
+ggplot(data = elections_final,
+       mapping= aes(x=margem_vitoria_mulher, y=  mulher_eleita, color=mulher_eleita))+
     geom_point(size = 1, alpha = .5,
                position = position_jitter(width = 0, height = .5),
                show.legend = FALSE) + 
   geom_vline(xintercept = 0)
 
-
-```
-
-```{r}
-ggplot(df_final, aes(x = margem_vitoria_mulher, fill=mulheres_eleitas))+
+ggplot(elections_final, aes(x = margem_vitoria_mulher, fill=mulher_eleita))+
   geom_histogram(binwidth =0.1 , boundary = 0, color = 'white') +
   geom_vline(xintercept = 0) 
 
-df_final |> 
-  group_by(mulheres_eleitas) |> 
+elections_final |> 
+  group_by(mulher_eleita) |> 
   summarise(total = n())
 ```
 
 ```{r}
 
-rdplotdensity(rdd = rddensity(df_final$margem_vitoria_mulher, c = 0),
-              X = df_final$margem_vitoria_mulher,
+rdplotdensity(rdd = rddensity(elections_final$margem_vitoria_mulher, c = 0),
+              X = elections_final$margem_vitoria_mulher,
               type="both")
 
-ggplot(data = df_final,
-       mapping= aes(x=margem_vitoria_mulher, y= mean_tx_homicidio_mandato, color=mulheres_eleitas))+
-  geom_point()
-
 
 ```
 
 
 ```{r}
-df_final |> 
-  ggplot(aes(margem_vitoria_mulher, y = mean_tx_homicidio_mandato, color = as.factor(mulheres_eleitas))) + 
-  geom_point() +
-  geom_smooth(method = 'loess')
-```
-```{r}
 
-df_final |> 
-  mutate(band_width = cut(margem_vitoria_mulher, breaks = seq(-1,1, by=0.01)),
-         mean_tx_homicidio_mandato = ifelse(is.na(mean_tx_homicidio_mandato), 0, mean_tx_homicidio_mandato)) |>
+elections_final |> 
+  mutate(band_width = cut(margem_vitoria_mulher, breaks = seq(-1,1, by=0.01))) |>
   group_by(band_width) |> 
-  summarize(tx_homicidio = mean(mean_tx_homicidio_mandato),
-            mulheres_eleitas = first(mulheres_eleitas)) |> 
-  ggplot(aes(as.numeric(band_width), y = tx_homicidio, color = as.factor(mulheres_eleitas))) + 
+  summarize(tx_homicidio = mean(tx_homicidio),
+            mulher_eleita = first(mulher_eleita)) |> 
+  ggplot(aes(as.numeric(band_width), y = tx_homicidio, color = as.factor(mulher_eleita))) + 
   geom_point() +
   geom_smooth(method = 'loess') +
-  xlim(80,120) + 
-  ylim(0,1.5)
+  ylim(5,15) +
+  xlim(80,120) +
+  ggtitle('Descontinuity')
+
+```
+
+```{r}
+
+library(extrafont)
+
+elections_final %>%
+  mutate(band_width = cut(margem_vitoria_mulher, breaks = seq(-1, 1, by = 0.01))) %>%
+  group_by(band_width) %>%
+  summarize(tx_homicidio = mean(tx_homicidio),
+            mulher_eleita = first(mulher_eleita)) %>%
+  mutate(band_width = as.character(as.numeric(band_width) - 100),
+         margem = as.numeric(band_width) - 0.5) %>%  
+  ggplot(aes(margem, y = tx_homicidio, color = as.factor(mulher_eleita))) +
+  geom_point() +
+  geom_smooth(method = 'loess', se = FALSE, size = 1) +
+  labs(title = 'Close Elections and Violence Against Women',
+       subtitle = 'Effects of having a Female Mayor',
+       x = "Women's Margin of Victory (%)",
+       y = "Homicide Rates of Women - Domestic",
+       color = 'Woman Elected') +
+  theme_minimal() +
+  labs(caption = "By InsperData") +
+  theme(legend.position = "none",
+        theme(plot.margin = margin(0, 0, 0, 0, "cm")),
+        plot.caption = element_text(color = "#3494ba", size = 11, face = "bold"),
+        plot.title = element_text(size = 14, face = "bold"),
+        plot.subtitle = element_text(size = 12, color = 'black'),
+        axis.title.y = element_text(margin = margin(r = 10, unit = "pt"), size = 11, face = "bold"), 
+        axis.title.x = element_text(margin = margin(t = 10, unit = "pt"), size = 11, face = "bold"),
+        text=element_text(family="Segoe UI Semibold", size=12)) + 
+  xlim(-20, 20) + 
+  ylim(5,12)
+
+
+
+
+```
+
+```{r}
+
+close_elections_final = elections_final |> 
+  filter(margem_vitoria_mulher <= 0.134/2 & margem_vitoria_mulher >= -0.134/2)
+
+
+resultado <- lm(tx_homicidio ~ mulher_eleita + margem_vitoria_mulher, data = close_elections_final) |> 
+  tidy()
+
+resultado$p.value <- round(resultado$p.value, 2)
+resultado$estimate <- round(resultado$estimate, 2)
+
+
+print(resultado)
+```
+
+
+```{r}
+
+rdrobust(y = elections_final$tx_homicidio, x = elections_final$margem_vitoria_mulher, c = 0, h= 0.134) |> summary()
+
+rdplot(y = close_elections_final$tx_homicidio, x = close_elections_final$margem_vitoria_mulher, c = 0)
+
 
 ```
 
