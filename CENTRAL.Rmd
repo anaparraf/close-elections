@@ -313,7 +313,7 @@ elections_results %>%
 library(stringr)
 library(stringi)
 
-rotulo_muni2005 <- read_excel('cd_muni_pre_2005.xls')
+rotulo_muni2005 <- read_excel('dados/cd_muni_pre_2005.xls')
 
 
 rotulo2005 <- rotulo_muni2005 |> 
@@ -323,7 +323,7 @@ rotulo2005 <- rotulo_muni2005 |>
          nm_municipio = str_replace_all(nm_municipio, "[^A-Za-z0-9 ]", ""),
          nm_municipio = toupper(nm_municipio))
 
-pop <- read_xlsx('estimativa_pop_municipio.xlsx', sheet = 'Planilha1')
+pop <- read_xlsx('dados/estimativa_pop_municipio.xlsx', sheet = 'Planilha1')
 
 
 rotulo <- pop |>  
@@ -339,7 +339,7 @@ rotulo <- pop |>
   rename(nm_municipio = municipio)
 
 
-datasus <- read.csv('datasus_completo.csv')
+datasus <- read.csv('dados/datasus_completo.csv')
 
 
 rotulo_final <- datasus |> 
@@ -383,6 +383,20 @@ domestic_homicide |> arrange(nm_municipio)
 
 
 ```
+```{r}
+
+rotulo_final |> filter(nm_municipio == 'MACAPA')
+
+datasus |> 
+  filter(municipio == 1600303,
+         mandato == 2004,
+         local == 3) |> 
+  arrange(desc(idade))
+
+domestic_homicide
+
+```
+
 
 ### juntando com a base principal
 
@@ -422,8 +436,9 @@ elections_final <- elections_results %>%
 
 
 ```{r}
-elections_final |> 
-  ggplot(aes(x = as.factor(ano))) + 
+ 
+elections_results |> 
+  ggplot(aes(x = as.factor(ano), fill = mulher_eleita)) + 
   geom_bar(position = 'dodge')
 
 elections_final %>%
@@ -439,7 +454,15 @@ elections_final %>%
   geom_bar(position = 'fill') +
   coord_flip() +
   geom_hline(yintercept = .50)
-  
+
+elections_final %>%
+  ggplot(aes(tx_homicidio, fill = mulher_eleita)) + 
+  geom_density(data = . %>% filter(mulher_eleita == TRUE), color = "blue", size = 1, alpha = 1) +  
+  geom_density(data = . %>% filter(mulher_eleita == FALSE), color = "red", size = 1, alpha = .78) +
+  labs(title = "Distribuição das Abstenções",
+       x = "Tx_abstencao",  
+       y = "Frequência") +  
+  theme_minimal()
 ```
 
 
@@ -476,7 +499,6 @@ rdplotdensity(rdd = rddensity(elections_final$margem_vitoria_mulher, c = 0),
               X = elections_final$margem_vitoria_mulher,
               type="both")
 
-
 ```
 
 
@@ -490,8 +512,8 @@ elections_final |>
   ggplot(aes(as.numeric(band_width), y = tx_homicidio, color = as.factor(mulher_eleita))) + 
   geom_point() +
   geom_smooth(method = 'loess') +
-  ylim(5,15) +
   xlim(80,120) +
+  ylim(0,20) +
   ggtitle('Descontinuity')
 
 ```
@@ -517,6 +539,159 @@ elections_final %>%
        color = 'Woman Elected') +
   theme_minimal() +
   labs(caption = "By InsperData") +
+  # theme(legend.position = "none",
+  #       theme(plot.margin = margin(0, 0, 0, 0, "cm")),
+  #       plot.caption = element_text(color = "#3494ba", size = 11, face = "bold"),
+  #       plot.title = element_text(size = 14, face = "bold"),
+  #       plot.subtitle = element_text(size = 12, color = 'black'),
+  #       axis.title.y = element_text(margin = margin(r = 10, unit = "pt"), size = 11, face = "bold"), 
+  #       axis.title.x = element_text(margin = margin(t = 10, unit = "pt"), size = 11, face = "bold")) +
+  xlim(-20, 20) +
+  ylim(5,14) 
+
+
+```
+
+```{r}
+
+close_elections_final = elections_final |> 
+  filter(margem_vitoria_mulher <= 0.165*.3 & margem_vitoria_mulher >= -0.165*.3)
+
+
+resultado <- lm(tx_homicidio ~ mulher_eleita + margem_vitoria_mulher, data = close_elections_final) |> 
+  tidy()
+
+resultado$p.value <- round(resultado$p.value, 2)
+resultado$estimate <- round(resultado$estimate, 2)
+
+print(resultado)
+
+```
+
+
+```{r}
+
+rdrobust(y = elections_final$tx_homicidio, x = elections_final$margem_vitoria_mulher, c = 0) |> summary()
+
+rdplot(y = close_elections_final$tx_homicidio, x = close_elections_final$margem_vitoria_mulher, c = 0)
+
+
+```
+
+```{r}
+library(extrafont)
+
+domestic_homicide <- datasus |> 
+  mutate(municipio = as.character(municipio),
+         idade = as.character(idade),
+         idade = substr(idade, 2, 3),
+         idade = as.numeric(idade),
+         municipio = as.character(municipio),
+         estado = substr(municipio, 1,2)) |> 
+  left_join(rotulo_final, by = c('municipio')) |> 
+  select(data, ano_obito, estado, municipio, nm_municipio, everything()) |>
+  filter(idade >= 15 & idade <= 49, # ambiente domestico
+         ano_obito <= 2016 & ano_obito > 2004) |> # somente 3 mandatos. 2004, 2008, 2012 
+  group_by(mandato, estado , nm_municipio) |> 
+  summarize(homicidios = n())
+
+
+muni_pop <- pop |>  
+  rename(municipio = Município) |> 
+  mutate(cd_municipio = substr(municipio, 1, 6),
+         municipio = substr(municipio,8, nchar(municipio))) |> 
+  melt(c('cd_municipio','municipio'))  |>  
+  rename(ano = variable,
+         pop = value) |>
+  select(-municipio)
+
+elections_final <- elections_results %>%
+  mutate(municipio = iconv(municipio, from = "UTF-8", to = "ASCII//TRANSLIT"),
+         municipio = str_replace_all(municipio, "[^A-Za-z0-9 ]", ""),
+         municipio = str_replace_all(municipio, "\\bD ", "D"),
+         municipio = trimws(municipio, which = "right"),
+         codigo_ibge = as.character(codigo_ibge),
+         cd_estado = substr(codigo_ibge,1,2)) %>%
+  left_join(domestic_homicide, by=c('ano' = 'mandato', 'cd_estado' = 'estado', 'municipio' = 'nm_municipio')) %>%
+  select(ano, estado, municipio, codigo_ibge, homicidios, margem_vitoria_mulher, everything()) |> 
+  mutate(homicidios = replace_na(homicidios, 0),
+         codigo_ibge = as.character(codigo_ibge),
+         codigo_ibge_att = substr(codigo_ibge, 1, 6),
+         ano = as.factor(ano)) |> 
+  left_join(muni_pop, by=c('codigo_ibge_att' = 'cd_municipio', 'ano')) |> 
+  mutate(pop = as.integer(pop),
+         tx_homicidio = (homicidios/pop)*100000) |> 
+  select(ano, estado, municipio, margem_vitoria_mulher, tx_homicidio, everything(), -cd_municipio) |> 
+  filter(total_votantes < 200000)
+
+
+
+elections_final %>%
+  mutate(band_width = cut(margem_vitoria_mulher, breaks = seq(-1, 1, by = 0.01))) %>%
+  group_by(band_width) %>%
+  summarize(tx_homicidio = mean(tx_homicidio),
+            mulher_eleita = first(mulher_eleita)) %>%
+  mutate(band_width = as.character(as.numeric(band_width) - 100),
+         margem = as.numeric(band_width) - 0.5) %>%
+  ggplot(aes(margem, y = tx_homicidio, color = as.factor(mulher_eleita))) +
+  geom_point() +
+  geom_smooth(method = 'loess', se = FALSE, size = 1) +
+  labs(title = 'Close Elections and Violence Against Women',
+       subtitle = 'Effects of having a Female Mayor',
+       x = "Women's Margin of Victory (%)",
+       y = "Homicide Rates of Women - Domestic",
+       color = 'Woman Elected') +
+  theme_minimal() +
+  labs(caption = "By InsperData") +
+  # theme(legend.position = "none",
+  #       theme(plot.margin = margin(0, 0, 0, 0, "cm")),
+  #       plot.caption = element_text(color = "#3494ba", size = 11, face = "bold"),
+  #       plot.title = element_text(size = 14, face = "bold"),
+  #       plot.subtitle = element_text(size = 12, color = 'black'),
+  #       axis.title.y = element_text(margin = margin(r = 10, unit = "pt"), size = 11, face = "bold"),
+  #       axis.title.x = element_text(margin = margin(t = 10, unit = "pt"), size = 11, face = "bold"),
+  #       text=element_text(family="Segoe UI Semibold", size=12)) +
+  xlim(-20, 20) +
+  ylim(5,14)
+
+
+
+close_elections_final = elections_final |> 
+  filter(margem_vitoria_mulher <= 0.165*.3 & margem_vitoria_mulher >= -0.165*.3)
+
+
+resultado <- lm(tx_homicidio ~ mulher_eleita + margem_vitoria_mulher, data = close_elections_final) |> 
+  tidy()
+
+resultado$p.value <- round(resultado$p.value, 2)
+resultado$estimate <- round(resultado$estimate, 2)
+
+print(resultado)
+
+
+rdrobust(y = elections_final$tx_homicidio, x = elections_final$margem_vitoria_mulher, c = 0) |> summary()
+rdplot(y = close_elections_final$tx_homicidio, x = close_elections_final$margem_vitoria_mulher, c = 0)
+
+
+
+
+elections_final %>%
+  mutate(band_width = cut(margem_vitoria_mulher, breaks = seq(-1, 1, by = 0.01))) %>%
+  group_by(band_width) %>%
+  summarize(tx_homicidio = mean(tx_homicidio),
+            mulher_eleita = first(mulher_eleita)) %>%
+  mutate(band_width = as.character(as.numeric(band_width) - 100),
+         margem = as.numeric(band_width) - 0.5) %>%  
+  ggplot(aes(margem, y = tx_homicidio, color = as.factor(mulher_eleita))) +
+  geom_point() +
+  geom_smooth(method = 'loess', se = FALSE, size = 1) +
+  labs(title = 'Close Elections and Violence Against Women',
+       subtitle = 'Effects of having a Female Mayor',
+       x = "Women's Margin of Victory (%)",
+       y = "Homicide Rates of Women",
+       color = 'Woman Elected') +
+  theme_minimal() +
+  labs(caption = "By InsperData") +
   theme(legend.position = "none",
         theme(plot.margin = margin(0, 0, 0, 0, "cm")),
         plot.caption = element_text(color = "#3494ba", size = 11, face = "bold"),
@@ -526,43 +701,142 @@ elections_final %>%
         axis.title.x = element_text(margin = margin(t = 10, unit = "pt"), size = 11, face = "bold"),
         text=element_text(family="Segoe UI Semibold", size=12)) + 
   xlim(-20, 20) + 
-  ylim(5,12)
-
-
+  ylim(35, 70)
 
 
 ```
 
 ```{r}
 
-close_elections_final = elections_final |> 
-  filter(margem_vitoria_mulher <= 0.134/2 & margem_vitoria_mulher >= -0.134/2)
+elections_final |> 
+  group_by(mulher_eleita) |> 
+  summarise(n = n())
+
+elections_final |> 
+  filter(margem_vitoria_mulher <= 0.165*.3 & margem_vitoria_mulher >= -0.165*.3) |> 
+  group_by(mulher_eleita) |> 
+  summarise(n = n(),
+            tx_homicidio = mean(tx_homicidio),
+            idade_eleito = mean(idade_eleito),
+            total_votantes = mean(total_votantes), 
+            total_abstencoes = mean(total_abstencoes), 
+            pop = mean(pop))
+
+elections_final |> 
+  write_xlsx('elections_final')
+
+elections_final |> 
+  filter()
+
+```
+
+```{r}
+
+a <- ggplot(elections_final, aes(x = margem_vitoria_mulher, fill=mulher_eleita))+
+  geom_histogram(binwidth =0.1 , boundary = 0, color = 'white') +
+  labs(y = "Contagem", x = "Margem de vitória", fill = "Mulher Eleita") +
+  geom_vline(xintercept = 0)
+
+  ggsave('margem.png',plot = a, width = 12, height = 8, dpi= 600)
+  
+
+b <- elections_results |> 
+  ggplot(aes(x = as.factor(ano), fill = mulher_eleita)) + 
+  labs(y = "Contagem", x = "Ano de eleição", fill = "Mulher Eleita") +
+  geom_bar(position = 'dodge')
+
+  ggsave('b.png',plot = b, width = 12, height = 8, dpi= 600)
+
+c <- elections_results %>%
+  mutate(estado = fct_rev(fct_infreq(as.factor(estado)))) %>%  
+  ggplot(aes(x = estado, fill = mulher_eleita)) +
+  geom_bar(position = 'fill') +
+  coord_flip() +
+  labs(x = "Estado", y = "Proporção", fill = "Mulher Eleita") +
+  geom_hline(yintercept = .50, linetype = "dashed", color = "yellow", linewidth = 1) +
+  scale_y_continuous(labels = percent)
 
 
-resultado <- lm(tx_homicidio ~ mulher_eleita + margem_vitoria_mulher, data = close_elections_final) |> 
-  tidy()
+d <- elections_results %>%
+  ggplot(aes(x = mulher_eleita, fill = educacao_eleito)) +
+  geom_bar() +
+  ggtitle('...')+
+  coord_flip() 
 
-resultado$p.value <- round(resultado$p.value, 2)
-resultado$estimate <- round(resultado$estimate, 2)
+  ggsave('c.png',plot = c, width = 12, height = 8, dpi= 600)
+  ggsave('d.png',plot = d, width = 12, height = 8, dpi= 600)
 
-
-print(resultado)
 ```
 
 
 ```{r}
 
-rdrobust(y = elections_final$tx_homicidio, x = elections_final$margem_vitoria_mulher, c = 0, h= 0.134) |> summary()
-
-rdplot(y = close_elections_final$tx_homicidio, x = close_elections_final$margem_vitoria_mulher, c = 0)
-
+elections_final
 
 ```
 
+```{r}
+
+elections_final |> 
+  group_by(mulher_eleita) |> 
+  summarise(n = n())
+
+elections_final |> 
+  group_by(mulher_eleita) |> 
+  summarise(n = n(),
+            tx_homicidio = mean(tx_homicidio),
+            idade_eleito = mean(idade_eleito),
+            total_votantes = mean(total_votantes), 
+            total_abstencoes = mean(total_abstencoes), 
+            pop = mean(pop))
+
+elections_final |> 
+  group_by(partido_eleito, mulher_eleita) |> 
+  summarise(n = n()) |>
+  mutate(representatividade_partido = case_when(mulher_eleita == TRUE ~ n/1315,
+                                                mulher_eleita == FALSE ~ n/1802),
+         representatividade_partido = round(representatividade_partido,4)) |> 
+  filter(partido_eleito %in% c('PMDB', 'PSDB', 'PT' , 'PP'))
+  
+
+elections_final |> 
+  group_by(partido_eleito) |> 
+  summarise(n = n()) |> 
+  arrange(desc(n))
+
+
+elections_final |> 
+  group_by(educacao_eleito) |> 
+  summarise(n = n())
+
+
+elections_final |> 
+  group_by(educacao_eleito, mulher_eleita) |> 
+  summarise(n = n())
+  
+
+elections_final |> 
+  group_by(partido_eleito) |> 
+  summarise(n = n()) |> 
+  arrange(desc(n))
+
+fund = c('ENSINO FUNDAMENTAL COMPLETO', 'ENSINO FUNDAMENTAL INCOMPLETO','FUNDAMENTAL COMPLETO', 'FUNDAMENTAL INCOMPLETO', 'LÊ E ESCREVE', 'NÃO INFORMADO')
+med = c('MÉDIO COMPLETO', 'MÉDIO INCOMPLETO', 'ENSINO MÉDIO COMPLETO', 'ENSINO MÉDIO INCOMPLETO')
+sup = c('SUPERIOR COMPLETO', 'SUPERIOR INCOMPLETO')
+
+elections_final %>%
+  mutate(edu_new = case_when(educacao_eleito %in% fund ~ 'Até Fundamental',
+                             educacao_eleito %in% med ~ 'Até Médio',
+                             educacao_eleito %in% sup ~ 'Até Superior')) %>%
+  group_by(edu_new, mulher_eleita) %>%
+  summarise(n = n()) |> 
+  mutate(representatividade_educ = case_when(mulher_eleita == TRUE ~ n/1315,
+                                                mulher_eleita == FALSE ~ n/1802),
+         representatividade_educ = round(representatividade_educ,4))
 
 
 
 
-
+```
 
 

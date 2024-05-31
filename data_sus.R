@@ -12,6 +12,8 @@ library(microdatasus)
 
 
 dados <- fetch_datasus(year_start = 2000, year_end = 2024, uf = "all", information_system = "SIM-DOEXT")
+dados |> 
+  filter(CODMUNRES)
 
 data_sus_homicidios <- dados  |>  
   rename(sexo = SEXO,
@@ -26,12 +28,14 @@ data_sus_homicidios <- dados  |>
   filter(CAUSABAS >= 'X85' & CAUSABAS <= 'Y09')  |> 
   mutate(ano_obito = substr(data, 5, 8)) |> 
   select(data, ano_obito, municipio, sexo, raca, civil, escolaridade, local, nascimento, idade) |> 
-  mutate(mandato = ifelse(ano_obito <= 2004, 2000, 
-                          ifelse(ano_obito <= 2008, 2004,
-                                 ifelse(ano_obito <= 2012, 2008,
-                                        ifelse(ano_obito <= 2016, 2012,
-                                               ifelse(ano_obito <= 2020, 2016,
-                                                      ifelse( ano_obito <=2024, 2020)))))))
+  mutate(mandato = case_when(
+    ano_obito <= 2004 ~ 2000,
+    ano_obito <= 2008 ~ 2004,
+    ano_obito <= 2012 ~ 2008,
+    ano_obito <= 2016 ~ 2012,
+    ano_obito <= 2020 ~ 2016,
+    ano_obito <= 2024 ~ 2020,
+    .default = NA))
 
 
 
